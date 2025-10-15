@@ -185,7 +185,7 @@ export class BluetoothDeviceWrapper {
     this.duringExplicitConnectDisconnect++;
     if (this.device.gatt === undefined) {
       throw new Error(
-        "BluetoothRemoteGATTServer for micro:bit device is undefined",
+        "BluetoothRemoteGATTServer for device is undefined",
       );
     }
 
@@ -338,7 +338,7 @@ export class BluetoothDeviceWrapper {
 
   private assertGattServer(): BluetoothRemoteGATTServer {
     if (!this.device.gatt?.connected) {
-      throw new Error("Could not listen to services, no microbit connected!");
+      throw new Error("Could not listen to services, nothing connected!");
     }
     return this.device.gatt;
   }
@@ -359,7 +359,7 @@ export class BluetoothDeviceWrapper {
         return "V1";
       }
       if (
-        modelNumber.toLowerCase().includes("BBC micro:bit v2".toLowerCase())
+        modelNumber.toLowerCase().includes("Calliope mini V3".toLowerCase())
       ) {
         return "V2";
       }
