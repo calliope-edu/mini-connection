@@ -291,60 +291,70 @@ class MicrobitWebBluetoothConnectionImpl
     this.nameFilter = name;
   }
 
-  private async chooseDevice(): Promise<BluetoothDevice | undefined> {
-    if (this.device) {
-      return this.device;
-    }
-    this.dispatchTypedEvent("beforerequestdevice", new BeforeRequestDevice());
-    try {
-      // In some situations the Chrome device prompt simply doesn't appear so we time this out after 30 seconds and reload the page
-      // TODO: give control over this to the caller
-      const result = await Promise.race([
-        navigator.bluetooth.requestDevice({
-          filters: [
-            {
-              namePrefix: this.nameFilter
-                ? `BBC micro:bit [${this.nameFilter}]`
-                : "BBC micro:bit",
-            },
-            {
-              // See https://github.com/bsiever/microbit-pxt-blehid/issues/31
-              namePrefix: this.nameFilter
-                ? `uBit [${this.nameFilter}]`
-                : "uBit",
-            },
-          ],
-          optionalServices: [
-            profile.accelerometer.id,
-            profile.button.id,
-            profile.deviceInformation.id,
-            profile.dfuControl.id,
-            profile.event.id,
-            profile.ioPin.id,
-            profile.led.id,
-            profile.magnetometer.id,
-            profile.temperature.id,
-            profile.uart.id,
-          ],
-        }),
-        new Promise<"timeout">((resolve) =>
-          setTimeout(() => resolve("timeout"), requestDeviceTimeoutDuration),
-        ),
-      ]);
-      if (result === "timeout") {
-        // btSelectMicrobitDialogOnLoad.set(true);
-        window.location.reload();
-        return undefined;
-      }
-      this.device = result;
-      return result;
-    } catch (e) {
-      this.logging.error("Bluetooth request device failed/cancelled", e);
-      return undefined;
-    } finally {
-      this.dispatchTypedEvent("afterrequestdevice", new AfterRequestDevice());
-    }
+ private async chooseDevice(): Promise<BluetoothDevice | undefined> {
+  if (this.device) {
+    return this.device;
   }
+  this.dispatchTypedEvent("beforerequestdevice", new BeforeRequestDevice());
+  try {
+    // In some situations the Chrome device prompt simply doesn't appear so we time this out after 30 seconds and reload the page
+    // TODO: give control over this to the caller
+    const result = await Promise.race([
+      navigator.bluetooth.requestDevice({
+        filters: [
+          {
+            namePrefix: this.nameFilter
+              ? `BBC micro:bit [${this.nameFilter}]`
+              : "BBC micro:bit",
+          },
+          {
+            // See https://github.com/bsiever/microbit-pxt-blehid/issues/31
+            namePrefix: this.nameFilter
+              ? `uBit [${this.nameFilter}]`
+              : "uBit",
+          },
+          {
+            namePrefix: this.nameFilter
+              ? `Calliope mini [${this.nameFilter}]`
+              : "Calliope mini",
+          },
+          {
+            namePrefix: this.nameFilter
+              ? `DfuTarg [${this.nameFilter}]`
+              : "DfuTarg",
+          },
+        ],
+        optionalServices: [
+          profile.accelerometer.id,
+          profile.button.id,
+          profile.deviceInformation.id,
+          profile.dfuControl.id,
+          profile.event.id,
+          profile.ioPin.id,
+          profile.led.id,
+          profile.magnetometer.id,
+          profile.temperature.id,
+          profile.uart.id,
+        ],
+      }),
+      new Promise<"timeout">((resolve) =>
+        setTimeout(() => resolve("timeout"), requestDeviceTimeoutDuration),
+      ),
+    ]);
+    if (result === "timeout") {
+      // btSelectMicrobitDialogOnLoad.set(true);
+      window.location.reload();
+      return undefined;
+    }
+    this.device = result;
+    return result;
+  } catch (e) {
+    this.logging.error("Bluetooth request device failed/cancelled", e);
+    return undefined;
+  } finally {
+    this.dispatchTypedEvent("afterrequestdevice", new AfterRequestDevice());
+  }
+}
 
   async getAccelerometerData(): Promise<AccelerometerData | undefined> {
     const accelerometerService =
