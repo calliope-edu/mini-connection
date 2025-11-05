@@ -37,7 +37,16 @@ export const isChromeOS105 = (): boolean => {
   return /CrOS/.test(userAgent) && /Chrome\/105\b/.test(userAgent);
 };
 
-const defaultFilters = [{ vendorId: 0x0d28, productId: 0x0204 }];
+const defaultFilters = [
+  { vendorId: 0x0d28, productId: 0x0204 }, // micro:bit & Mini 3
+  {
+      vendorId: 0x1366, // Segger
+      productId: 0x1015 // Mini 2.0
+  }, {
+      vendorId: 0x1366, // Segger
+      productId: 0x1025 // Mini 2.1
+  }
+];
 
 export enum DeviceSelectionMode {
   /**
