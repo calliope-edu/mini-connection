@@ -313,6 +313,12 @@ class MicrobitWebBluetoothConnectionImpl
                 ? `uBit [${this.nameFilter}]`
                 : "uBit",
             },
+            {
+              // See https://github.com/bsiever/microbit-pxt-blehid/issues/31
+              namePrefix: this.nameFilter
+                ? `Calliope mini [${this.nameFilter}]`
+                : "Calliope mini",
+            },
           ],
           optionalServices: [
             profile.accelerometer.id,
