@@ -395,6 +395,10 @@ export class BluetoothDeviceWrapper {
             if (modelNumber.toLowerCase().includes("BBC micro:bit v2".toLowerCase())) {
                 return "V2";
             }
+            // Recognize Calliope mini devices and treat as V2
+            if (modelNumber.toLowerCase().includes("Calliope mini".toLowerCase())) {
+                return "V2";
+            }
             throw new Error(`Unexpected model number ${modelNumber}`);
         }
         catch (e) {
