@@ -284,7 +284,18 @@ export class BluetoothDeviceWrapper {
                         // We always do this even if we might immediately disconnect as disconnecting
                         // without using services causes getPrimaryService calls to hang on subsequent
                         // reconnect - probably a device-side issue.
-                        this.boardVersion = await this.getBoardVersion();
+                        // Don't fail the whole connect when the Device Information service
+                        // (or its Model Number characteristic) is missing — many Calliope
+                        // MakeCode programs only expose the UART service. Default to V2
+                        // (Calliope mini 3 / micro:bit V2-class) so callers that branch on
+                        // board version still work.
+                        try {
+                            this.boardVersion = await this.getBoardVersion();
+                        }
+                        catch (e) {
+                            this.logging.log("Bluetooth: getBoardVersion failed, assuming V2");
+                            this.boardVersion = "V2";
+                        }
                         // This connection could be arbitrarily later when our manual timeout may have passed.
                         // Do we still want to be connected?
                         if (!this.connecting) {
