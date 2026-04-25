@@ -400,14 +400,22 @@ export class BluetoothDeviceWrapper {
             const characteristic = await deviceInfo.getCharacteristic(serviceMeta.characteristics.modelNumber.id);
             const modelNumberBytes = await characteristic.readValue();
             const modelNumber = new TextDecoder().decode(modelNumberBytes);
-            if (modelNumber.toLowerCase() === "BBC micro:bit".toLowerCase()) {
+            const lower = modelNumber.toLowerCase();
+            if (lower === "BBC micro:bit".toLowerCase()) {
                 return "V1";
             }
-            // Recognize Calliope mini devices and treat as V2
-            if (modelNumber.toLowerCase().includes("Calliope mini".toLowerCase())) {
+            // Recognize Calliope mini and any micro:bit V2 variants. We deliberately
+            // accept partial matches because firmware revisions vary the exact
+            // string ("Calliope mini V2", "Calliope mini V3", "BBC micro:bit V2"
+            // etc.) and we don't want a future variant to break the connection.
+            if (lower.includes("calliope mini") || lower.includes("v2")) {
                 return "V2";
             }
-            throw new Error(`Unexpected model number ${modelNumber}`);
+            // Unknown model — log it but don't fail. Default to V2 so callers that
+            // branch on board version pick the more capable code path. Boards that
+            // genuinely need V1 behaviour are vanishingly rare on BLE.
+            this.logging.log(`Bluetooth: unrecognized model number "${modelNumber}", assuming V2`);
+            return "V2";
         }
         catch (e) {
             this.logging.error("Could not read model number", e);
