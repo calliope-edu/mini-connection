@@ -49,6 +49,14 @@ export declare const profile: {
             };
         };
     };
+    partialFlashing: {
+        id: string;
+        characteristics: {
+            control: {
+                id: string;
+            };
+        };
+    };
     led: {
         id: string;
         characteristics: {

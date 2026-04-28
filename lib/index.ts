@@ -4,6 +4,21 @@ import {
   MicrobitWebBluetoothConnection,
   MicrobitWebBluetoothConnectionOptions,
 } from "./bluetooth.js";
+import {
+  BluetoothPartialFlashDalMismatchError,
+  BluetoothPartialFlashInvalidHexError,
+  BluetoothPartialFlashOptions,
+  BluetoothPartialFlashServiceMissingError,
+  BluetoothPartialFlashSession,
+  PARTIAL_FLASH_CHARACTERISTIC_UUID,
+  PARTIAL_FLASH_SERVICE_UUID,
+  parseMakeCodeHex,
+} from "./bluetooth-partial-flashing.js";
+import {
+  BluetoothFlashOptions,
+  BluetoothFlashPhase,
+  flashOverBluetooth,
+} from "./bluetooth-flash.js";
 import { BoardId } from "./board-id.js";
 import { ButtonEvent, ButtonEventType, ButtonState } from "./buttons.js";
 import {
@@ -51,7 +66,12 @@ export {
   AfterRequestDevice,
   BackgroundErrorEvent,
   BeforeRequestDevice,
+  BluetoothPartialFlashDalMismatchError,
+  BluetoothPartialFlashInvalidHexError,
+  BluetoothPartialFlashServiceMissingError,
+  BluetoothPartialFlashSession,
   BoardId,
+  flashOverBluetooth,
   ConnectionStatus,
   ConnectionStatusEvent,
   createRadioBridgeConnection,
@@ -63,6 +83,9 @@ export {
   DeviceError,
   FlashDataError,
   FlashEvent,
+  PARTIAL_FLASH_CHARACTERISTIC_UUID,
+  PARTIAL_FLASH_SERVICE_UUID,
+  parseMakeCodeHex,
   SerialConnectionEventMap,
   SerialDataEvent,
   SerialErrorEvent,
@@ -75,6 +98,9 @@ export {
 export type {
   AccelerometerData,
   AccelerometerDataEvent,
+  BluetoothFlashOptions,
+  BluetoothFlashPhase,
+  BluetoothPartialFlashOptions,
   BoardVersion,
   ButtonEvent,
   ButtonEventType,

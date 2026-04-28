@@ -30,6 +30,12 @@ export const profile = {
       control: { id: "e95d93b1-251d-470a-a062-fa1922dfa9a8" },
     },
   },
+  partialFlashing: {
+    id: "e97dd91d-251d-470a-a062-fa1922dfa9a8",
+    characteristics: {
+      control: { id: "e97d3b10-251d-470a-a062-fa1922dfa9a8" },
+    },
+  },
   led: {
     id: "e95dd91d-251d-470a-a062-fa1922dfa9a8",
     characteristics: {
