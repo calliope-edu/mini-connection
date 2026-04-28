@@ -44,16 +44,20 @@ async function flashOverBluetooth(opts) {
         throw new Error("BluetoothDevice has no GATT");
     }
     await withWrapperReconnectSuppressed(opts.connection, async () => {
-        // Phase 1: refresh the GATT cache. Without this, getPrimaryService for
-        // the partial-flashing service often returns stale handles.
-        phase("refreshing");
-        opts.onProgress?.(0.03);
-        await refreshGatt(opts.device);
+        // Don't disconnect proactively. The wrapper just opened the GATT and is
+        // tracking it; our own disconnect+reconnect would race with the wrapper's
+        // internal state machine even with the suppress flag set, because the
+        // wrapper still has stale connection promises in flight. Try the existing
+        // GATT first; if it has a stale service tree (Chrome cache from a prior
+        // device-side reboot) the first attempt fails fast on a write timeout or
+        // ServiceMissing, and we then do one coordinated refresh.
+        phase("running");
         opts.onProgress?.(0.05);
         let lastErr = null;
         for (let attempt = 0; attempt < tries; attempt++) {
             if (attempt > 0) {
-                trace(`retrying after service-missing (attempt ${attempt + 1}/${tries})`);
+                trace(`retrying after ${describeRetryReason(lastErr)} (attempt ${attempt + 1}/${tries})`);
+                phase("refreshing");
                 opts.onProgress?.(0.04);
                 await refreshGatt(opts.device);
                 opts.onProgress?.(0.06);
@@ -64,13 +68,32 @@ async function flashOverBluetooth(opts) {
             }
             catch (err) {
                 lastErr = err;
-                if (!(err instanceof bluetooth_partial_flashing_js_1.BluetoothPartialFlashServiceMissingError)) {
+                if (!isRetryableFlashError(err)) {
                     throw err;
                 }
+                trace(`first attempt failed: ${err.message}`);
             }
         }
         throw lastErr ?? new Error("Flash failed");
     });
+}
+function isRetryableFlashError(err) {
+    if (err instanceof bluetooth_partial_flashing_js_1.BluetoothPartialFlashServiceMissingError)
+        return true;
+    // Timeouts on writeNoNotify / openCharacteristic are surfaced as plain
+    // Errors with a "timeout: …" prefix — see the timeout helper at the bottom
+    // of bluetooth-partial-flashing.ts. They almost always mean "Chrome's GATT
+    // cache is stale", which a coordinated refresh+reconnect cures.
+    const msg = err?.message ?? "";
+    return /^timeout:/.test(msg);
+}
+function describeRetryReason(err) {
+    if (err instanceof bluetooth_partial_flashing_js_1.BluetoothPartialFlashServiceMissingError)
+        return "service-missing";
+    const msg = err?.message ?? "";
+    if (/^timeout:/.test(msg))
+        return msg;
+    return "unknown error";
 }
 async function runOnce(opts, phase, trace) {
     const server = opts.device.gatt.connected

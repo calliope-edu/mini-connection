@@ -271,24 +271,34 @@ export class BluetoothPartialFlashSession {
     async openCharacteristic() {
         let service;
         try {
-            service = await this.server.getPrimaryService(PARTIAL_FLASH_SERVICE_UUID);
+            service = await withTimeout(this.server.getPrimaryService(PARTIAL_FLASH_SERVICE_UUID), 4000, "getPrimaryService(partial-flashing)");
         }
-        catch {
+        catch (err) {
+            // Distinguish "service not in GATT table" from "Chrome's GATT call hung
+            // on a stale cache" — both surface as ServiceMissing to the caller, who
+            // can then force a fresh disconnect+reconnect. The orchestrator in
+            // `bluetooth-flash.ts` already retries once on this error.
+            const e = err;
+            this.logging.log({ message: `pf-ble: getPrimaryService failed: ${e.message}` });
             throw new BluetoothPartialFlashServiceMissingError();
         }
-        const ch = await service.getCharacteristic(PARTIAL_FLASH_CHARACTERISTIC_UUID);
-        await ch.startNotifications();
+        const ch = await withTimeout(service.getCharacteristic(PARTIAL_FLASH_CHARACTERISTIC_UUID), 3000, "getCharacteristic(partial-flashing)");
+        await withTimeout(ch.startNotifications(), 3000, "startNotifications");
         ch.addEventListener("characteristicvaluechanged", this.onNotify);
         this.characteristic = ch;
     }
     async writeNoNotify(payload) {
         if (!this.characteristic)
             throw new Error("not connected");
+        // 3 s ceiling. WebBluetooth's writeValueWithoutResponse can hang silently
+        // when the underlying GATT view is stale (Chrome caches across
+        // reconnects); without a timeout the whole flash sits at the same
+        // progress percentage forever and the user assumes it's frozen.
         if (this.characteristic.writeValueWithoutResponse) {
-            await this.characteristic.writeValueWithoutResponse(payload);
+            await withTimeout(this.characteristic.writeValueWithoutResponse(payload), 3000, "writeValueWithoutResponse");
         }
         else {
-            await this.characteristic.writeValue(payload);
+            await withTimeout(this.characteristic.writeValue(payload), 3000, "writeValue");
         }
     }
     waitForResponse(timeoutMs, label) {
@@ -330,11 +340,51 @@ export class BluetoothPartialFlashSession {
         if (!reconnect) {
             throw new Error("device in application mode — caller must supply reconnect()");
         }
-        await this.writeNoNotify(new Uint8Array([Cmd.Reset, Mode.Pairing]));
-        // The device disconnects almost immediately. Tear down our handle.
+        const device = this.server.device;
+        const log = (m) => this.logging.log({ message: `pf-ble: ${m}` });
+        // Up to three attempts: write the RESET-into-pairing command and wait for
+        // the device to actually drop the GATT link. If the write succeeded but
+        // the device is still connected after the timeout we retry — Chrome's
+        // writeValueWithoutResponse occasionally returns success for writes the
+        // device never actually processes (stale GATT cache after a previous
+        // mode change).
+        let disconnected = false;
+        for (let attempt = 0; attempt < 3 && !disconnected; attempt++) {
+            const waitForDisconnect = oneShotEvent(device, "gattserverdisconnected", 3500);
+            try {
+                await this.writeNoNotify(new Uint8Array([Cmd.Reset, Mode.Pairing]));
+                log(`reset-into-pairing written (attempt ${attempt + 1})`);
+            }
+            catch (err) {
+                log(`reset-into-pairing write failed: ${err.message}`);
+                // The write itself errored — wait briefly, retry. If we're already
+                // disconnected (write failed because GATT is gone) waitForDisconnect
+                // will resolve quickly.
+            }
+            try {
+                await waitForDisconnect.promise;
+                disconnected = !device.gatt?.connected;
+                if (disconnected) {
+                    log(`device acknowledged reset by disconnecting`);
+                    break;
+                }
+                log(`disconnect event fired but gatt still reports connected`);
+            }
+            catch {
+                log(`no disconnect within 3.5 s — retrying reset command`);
+            }
+            finally {
+                waitForDisconnect.cancel();
+            }
+        }
+        if (!disconnected) {
+            throw new Error("Calliope did not switch to pairing mode (no disconnect after 3 attempts)");
+        }
+        // Tear down our local listener handles. The peer is gone, the
+        // characteristic reference is invalid.
         await this.dispose();
-        // Give the device time to reset (~1.5 s).
-        await delay(1600);
+        // Give the device a moment to come back up under its pairing-mode profile.
+        await delay(1200);
         const newServer = await reconnect();
         if (!newServer) {
             throw new Error("reconnect callback did not produce a new GATT server");
@@ -342,6 +392,52 @@ export class BluetoothPartialFlashSession {
         this.server = newServer;
         await this.openCharacteristic();
     }
+}
+/**
+ * Wait for a single event on `target`, with a timeout. Returns a handle to
+ * cancel the listener if the caller no longer needs it.
+ */
+function oneShotEvent(target, type, timeoutMs) {
+    let handler = () => { };
+    let timer = null;
+    const promise = new Promise((resolve, reject) => {
+        handler = () => {
+            target.removeEventListener(type, handler);
+            if (timer)
+                clearTimeout(timer);
+            resolve();
+        };
+        target.addEventListener(type, handler, { once: true });
+        timer = setTimeout(() => {
+            target.removeEventListener(type, handler);
+            reject(new Error(`timeout waiting for ${type}`));
+        }, timeoutMs);
+    });
+    return {
+        promise,
+        cancel: () => {
+            target.removeEventListener(type, handler);
+            if (timer)
+                clearTimeout(timer);
+        },
+    };
+}
+/**
+ * Await `p` with a hard timeout. WebBluetooth's GATT operations have no
+ * built-in timeout and frequently hang on stale cache state, so every GATT
+ * call this module makes is wrapped here for predictable failure modes.
+ */
+function withTimeout(p, ms, label) {
+    return new Promise((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error(`timeout: ${label}`)), ms);
+        p.then((v) => {
+            clearTimeout(t);
+            resolve(v);
+        }, (e) => {
+            clearTimeout(t);
+            reject(e);
+        });
+    });
 }
 function buildFlashPackets(blockAddr, startPacketNum, block64) {
     // Mirror MakeCode's wire layout exactly:
