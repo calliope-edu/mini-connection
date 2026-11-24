@@ -1,0 +1,40 @@
+# Calliope's check for this fork: build, tests and formatting on every pull
+# request to and push on calliope-main. Upstream's build (npm publish) and
+# build-docs (GitHub Pages) stay on upstream's branches; the fork publishes
+# nothing, the apps pin it by commit and use the committed build/ directory.
+name: calliope-ci
+
+on:
+  pull_request:
+    branches: [calliope-main]
+  push:
+    branches: [calliope-main]
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+      - run: npm ci
+      # build:lib, vitest and prettier --check.
+      - run: npm run ci
+      # The apps install this fork from git and use build/ as committed, so it
+      # has to match lib/. build/*/package.json is left out: the npm script
+      # writes it with `echo`, which drops the quotes on Linux.
+      - name: Committed build/ is up to date
+        run: |
+          git status --porcelain -- build ':!build/*/package.json'
+          git diff --exit-code -- build ':!build/*/package.json'
+          test -z "$(git status --porcelain -- build ':!build/*/package.json')"

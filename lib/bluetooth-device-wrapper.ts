@@ -360,7 +360,7 @@ export class BluetoothDeviceWrapper {
       }
       // Recognize Calliope mini devices and treat as V2
       if (modelNumber.toLowerCase().includes("Calliope mini".toLowerCase())) {
-          return "V2";
+        return "V2";
       }
       throw new Error(`Unexpected model number ${modelNumber}`);
     } catch (e) {
