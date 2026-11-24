@@ -26,18 +26,18 @@ const describeDeviceOnly = process.env.TEST_MODE_DEVICE
 
 describe("MicrobitWebUSBConnection (WebUSB unsupported)", () => {
   it("notices if WebUSB isn't supported", () => {
-    (global as any).navigator = {};
+    vi.stubGlobal("navigator", {});
     const microbit = createWebUSBConnection();
     expect(microbit.status).toBe(ConnectionStatus.NOT_SUPPORTED);
   });
   it("still triggers afterrequestdevice if requestDevice throws", async () => {
-    (global as any).navigator = {
+    vi.stubGlobal("navigator", {
       usb: {
         requestDevice: () => {
           throw new Error();
         },
       },
-    };
+    });
     const microbit = createWebUSBConnection();
     expect(microbit.status).toBe(ConnectionStatus.NO_AUTHORIZED_DEVICE);
     const afterRequestDevice = vi.fn();
@@ -60,9 +60,7 @@ describeDeviceOnly("MicrobitWebUSBConnection (WebUSB supported)", () => {
       },
     };
     // Maybe we can move this to a custom jest environment?
-    (global as any).navigator = {
-      usb,
-    };
+    vi.stubGlobal("navigator", { usb });
   });
 
   it("shows no device as initial status", () => {
